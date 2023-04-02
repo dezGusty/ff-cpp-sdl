@@ -1,0 +1,15 @@
+5 4
+1 5 2 4
+7 15 100
+3 90
+2 250
+350 150
+//nr nave max pe ecran, nr tipuri nave
+//tipurile de nave din nivel
+//raritatea navelor,focului,bonusurilor
+//nr max de asteroizi (0..7), densitate(1 la xx)
+//tipul misiunii
+  //  0=timer... rezista [x] turatii
+  //  1=nave...[x] nave distruse
+  //  2=bani...posezi [x] bani
+//munitie 1,munitie 2
