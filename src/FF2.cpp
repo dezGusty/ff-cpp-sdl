@@ -20,8 +20,9 @@ FF2::~FF2()
 }
 
 char c, *paleta;
-unsigned char a[640], caz[10], aux[45][45];
-int mouse_btn, x, y, i, j, goodbye, game_over, victory, shipx, shiplife, exshiplife, kk;
+unsigned char global_a_line[640], caz[10], aux[45][45];
+int mouse_btn = 0, x = 0, y = 0, i = 0, j = 0;
+int goodbye = 0, game_over = 0, victory = 0, shipx = 0, shiplife = 100, exshiplife = 100;
 int tipnav, extipnav, waiter, fwaiter; // pt mutarile navei &foc
 long mun1, mun2, cash, exmun1, exmun2, excash, kills, timer, ltimp;
 int temp_bye = 0;     // quit pt joc in desfasurare
@@ -33,7 +34,7 @@ unsigned char bm1[45][45], bm2[45][45], bm3[45][45], bm4[45][45], bm5[45][45], b
 unsigned char blt1[15][15], blt2[15][15], blt3[15][15], blt4[15][15], blt5[15][15], aux15[15][15];
 unsigned char bns1[15][15], bns2[15][15], bns3[15][15], bns4[15][15];
 unsigned char ast1[45][45], ast2[45][45];
-float luminozitate;
+float luminozitate = 1.0;
 // tipul ce va defini stelele
 typedef struct
 {
@@ -92,16 +93,14 @@ void initializari(void)
 
 void give(unsigned char a[45][45], unsigned char b[45][45])
 {
-  int i, j;
-  for (i = 0; i < 45; i++)
-    for (j = 0; j < 45; j++)
+  for (int i = 0; i < 45; i++)
+    for (int j = 0; j < 45; j++)
       b[i][j] = a[i][j];
 }
 void give15(unsigned char a[15][15], unsigned char b[15][15])
 {
-  int i, j;
-  for (i = 0; i < 15; i++)
-    for (j = 0; j < 15; j++)
+  for (int i = 0; i < 15; i++)
+    for (int j = 0; j < 15; j++)
       b[i][j] = a[i][j];
 }
 
@@ -109,10 +108,10 @@ void printfile(IGraphicsMiddleware *graphics, int x, int y, char file_name[30], 
 {
   FILE *f = NULL;
   unsigned char c;
-  int i, j;
-  for (i = 0; j < 640; j++)
+  unsigned char a_line[640];
+  for (int i = 0; i < 640; i++)
   {
-    a[i] = 0;
+    a_line[i] = 0;
   }
 
   f = fopen(file_name, "r");
@@ -122,11 +121,11 @@ void printfile(IGraphicsMiddleware *graphics, int x, int y, char file_name[30], 
     {
       fscanf(f, "%c", &c);
       if (c >= 33)
-        a[j] = c;
+        a_line[j] = c;
     }
     for (j = 0; j < dm1; j++)
       if (c >= 33)
-        graphics->putpixel(x + j, y + i, a[j]);
+        graphics->putpixel(x + j, y + i, a_line[j]);
     fscanf(f, "%c", &c);
   }
   fclose(f);
@@ -1653,7 +1652,7 @@ void game(IGraphicsMiddleware *graphics, ILogicMiddleware *logic, char *harta)
   } while (!game_over && !temp_bye && !goodbye && !victory);
   if (game_over)
   {
-    for (kk = 1; kk <= 100; kk++)
+    for (int kk = 1; kk <= 100; kk++)
     {
       muta_stele(graphics, logic);
       muta_gloante_en(graphics, logic);
@@ -1682,7 +1681,7 @@ void game(IGraphicsMiddleware *graphics, ILogicMiddleware *logic, char *harta)
   }
   if (victory)
   {
-    for (kk = 1; kk <= 100; kk++)
+    for (int kk = 1; kk <= 100; kk++)
     {
       muta_stele(graphics, logic);
       muta_gloante_en(graphics, logic);
@@ -1804,25 +1803,33 @@ void jocnou(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
   if (!game_over && !player_terminate)
     ecran_victorie(graphics);
 }
+
 // #include "Logo.cpp"
-void logofunc(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
+void init_logo_state(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
 {
+  load_palette(graphics, "imagdata/logo.pal", 1.0);
+  printfile(graphics, 0, 0, "imagdata/logo.dta", 640, 400);
+}
+
+void logo_state_loop(IGraphicsMiddleware *graphics, ILogicMiddleware *logic, unsigned elapsed_milliseconds)
+{
+  load_palette(graphics, "imagdata/logo.pal", 1.0);
+  printfile(graphics, 0, 0, "imagdata/logo.dta", 640, 400);
   int waiter = 0;
-  paleta = "Imagdata\\Logo.pal";
-  printfile(graphics, 0, 0, "Imagdata\\Logo.dta", 640, 400);
   graphics->settextstyle(2, 0, 5);
   graphics->setcolor(252);
   graphics->outtextxy(5, 5, "O productie Gusty-2001");
-  luminare(graphics, logic, 2);
-  do
-  {
-    waiter++;
-    logic->delay(20);
-  } while (!kbhit() && waiter < 350);
-  if (kbhit())
-    getch();
-  intunecare(graphics, logic, 2);
-  graphics->cleardevice();
+  // luminare(graphics, logic, 2);
+
+  // do
+  // {
+  //   waiter++;
+  //   logic->delay(20);
+  // } while (!kbhit() && waiter < 350);
+  // if (kbhit())
+  //   getch();
+  // intunecare(graphics, logic, 2);
+  // graphics->cleardevice();
 }
 // Logo.cpp
 
@@ -2017,7 +2024,7 @@ void printfile0(IGraphicsMiddleware *graphics, int x, int y, char untext[30], in
   unsigned char c;
   int i, j;
   for (i = 0; j < 640; j++)
-    a[i] = 0;
+    global_a_line[i] = 0;
   f = fopen(untext, "r");
   for (i = 0; i < dm2; i++)
   {
@@ -2025,11 +2032,11 @@ void printfile0(IGraphicsMiddleware *graphics, int x, int y, char untext[30], in
     {
       fscanf(f, "%c", &c);
       if (c)
-        a[j] = c;
+        global_a_line[j] = c;
     }
     for (j = 0; j < dm1; j++)
       if (c >= 33)
-        graphics->putpixel(x + j, y + i, a[j]);
+        graphics->putpixel(x + j, y + i, global_a_line[j]);
     fscanf(f, "%c", &c);
   }
   fclose(f);
@@ -2037,22 +2044,31 @@ void printfile0(IGraphicsMiddleware *graphics, int x, int y, char untext[30], in
 
 //---
 
-void FF2::main_loop(void)
+void FF2::main_loop(unsigned elapsed_milliseconds)
 {
-  if (this->game_state_ == GAME_STATE_LOGO)
+  if (this->game_state_ == FF2_STATE_LOADING_SCREEN)
   {
-    logofunc(graphics_, logic_);
+    logo_state_loop(graphics_, logic_, elapsed_milliseconds);
   }
-  else if (this->game_state_ == GAME_STATE_MENU)
+  else if (this->game_state_ == FF2_STATE_MAIN_MENU)
   {
     meniu_principal(graphics_, logic_);
   }
-  else if (this->game_state_ == GAME_STATE_GAME)
+  else if (this->game_state_ == FF2_STATE_GAME)
   {
-    
   }
-  else if (this->game_state_ == GAME_STATE_EXIT)
+}
+
+void FF2::switch_to_state(FF2State state)
+{
+  this->game_state_ = state;
+  switch (state)
   {
-    
+  case FF2_STATE_LOADING_SCREEN:
+    init_logo_state(graphics_, logic_);
+    break;
+
+  default:
+    break;
   }
 }

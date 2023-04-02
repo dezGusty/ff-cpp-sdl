@@ -23,5 +23,6 @@ public:
   FF2(IGraphicsMiddleware *graphics, ILogicMiddleware *logic);
   ~FF2();
 
-  void main_loop();
+  void main_loop(unsigned elapsed_milliseconds);
+  void switch_to_state(FF2State state);
 };

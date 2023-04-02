@@ -190,6 +190,7 @@ int main(int argc, char *argv[])
     LogicMiddleware lm;
     GraphicsMiddleware gm(renderer);
     FF2 game(&gm, &lm);
+    game.switch_to_state(FF2_STATE_LOADING_SCREEN);
 
     while (isRunning)
     {
@@ -212,23 +213,24 @@ int main(int argc, char *argv[])
             }
         }
 
-        game.main_loop();
-
-        // generate a random pixel color and location
-        Uint8 r = 255; // rand() % 256;
-        Uint8 g = rand() % 256;
-        Uint8 b = rand() % 256;
-        int x = rand() % SCREEN_WIDTH;
-        int y = rand() % SCREEN_HEIGHT;
-
         // clear the screen
         memset(pixels, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(Uint32));
 
-        // put the random pixel on the screen
-        putPixel(renderer, x, y, r, g, b, 255);
-        putPixel(renderer, x + 1, y, r, g, b, 255);
-        putPixel(renderer, x, y + 1, r, g, b, 255);
-        putPixel(renderer, x + 1, y + 1, r, g, b, 255);
+        game.main_loop(33);
+
+        // generate a random pixel color and location
+        // Uint8 r = 255; // rand() % 256;
+        // Uint8 g = rand() % 256;
+        // Uint8 b = rand() % 256;
+        // int x = rand() % SCREEN_WIDTH;
+        // int y = rand() % SCREEN_HEIGHT;
+
+
+        // // put the random pixel on the screen
+        // putPixel(renderer, x, y, r, g, b, 255);
+        // putPixel(renderer, x + 1, y, r, g, b, 255);
+        // putPixel(renderer, x, y + 1, r, g, b, 255);
+        // putPixel(renderer, x + 1, y + 1, r, g, b, 255);
 
         // copy the pixels to the texture
         SDL_UpdateTexture(texture, NULL, pixels, SCREEN_WIDTH * sizeof(Uint32));
