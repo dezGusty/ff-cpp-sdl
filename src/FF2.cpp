@@ -12,6 +12,7 @@
 FF2::FF2(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
     : graphics_(graphics), logic_(logic)
 {
+  game_state_ = FF2_STATE_LOADING_SCREEN;
 }
 
 FF2::~FF2()
@@ -20,7 +21,7 @@ FF2::~FF2()
 
 char c, *paleta;
 unsigned char a[640], caz[10], aux[45][45];
-int but, x, y, i, j, goodbye, game_over, victory, shipx, shiplife, exshiplife, kk;
+int mouse_btn, x, y, i, j, goodbye, game_over, victory, shipx, shiplife, exshiplife, kk;
 int tipnav, extipnav, waiter, fwaiter; // pt mutarile navei &foc
 long mun1, mun2, cash, exmun1, exmun2, excash, kills, timer, ltimp;
 int temp_bye = 0;     // quit pt joc in desfasurare
@@ -231,6 +232,80 @@ void x_negru15(IGraphicsMiddleware *graphics, unsigned char a[15][15], int x, in
         graphics->putpixel(x + j, y + i, 0);
 }
 
+int mxa(int i)
+{
+  int aux;
+  if (i > 63)
+    aux = 63;
+  else
+    aux = i;
+  return aux;
+}
+
+void load_palette(IGraphicsMiddleware *graphics, char nume[30], float intens)
+{
+  FILE *f;
+  int i, a, b, c;
+  char d;
+  f = fopen(nume, "r");
+  for (i = 0; i < 18; i++)
+    fscanf(f, "%c", &d);
+  for (i = 0; i < 256; i++)
+  {
+    fscanf(f, "%d%d%d", &a, &b, &c);
+    graphics->setrgbpalette(i, mxa(a / 4 * intens), mxa(b / 4 * intens), mxa(c / 4 * intens));
+  }
+  fclose(f);
+}
+void intunecare(IGraphicsMiddleware *graphics, ILogicMiddleware *logic, int viteza)
+{
+  float fl;
+  for (fl = luminozitate; fl > 0.0; fl -= 0.1)
+  {
+    load_palette(graphics, paleta, fl);
+    logic->delay(10 * viteza);
+  }
+}
+
+void luminare(IGraphicsMiddleware *graphics, ILogicMiddleware *logic, int viteza)
+{
+  float fl;
+  for (fl = 0.0; fl < luminozitate; fl += 0.1)
+  {
+    load_palette(graphics, paleta, fl);
+    logic->delay(10 * viteza);
+  }
+  load_palette(graphics, paleta, luminozitate);
+}
+
+void text_shadow(IGraphicsMiddleware *graphics, int x, int y, char mesaj[50], int culoare)
+{
+  graphics->setcolor(0);
+  graphics->outtextxy(x + 1, y + 1, mesaj);
+  graphics->setcolor(culoare);
+  graphics->outtextxy(x, y, mesaj);
+}
+
+void write_file(IGraphicsMiddleware *graphics, char *fisier, int x, int y, int dim1, int dim2)
+{
+  int i, j;
+  FILE *f;
+  char c;
+  f = fopen(fisier, "w");
+  for (j = y; j < y + dim2; j++)
+  {
+    for (i = x; i < x + dim1; i++)
+    {
+      c = graphics->getpixel(i, j);
+      if (c == 0)
+        c = 255;
+      fprintf(f, "%c", c);
+    }
+    fprintf(f, "\n");
+  }
+  fclose(f);
+}
+
 // procedurile legate de stele
 void init_culori_stele(IGraphicsMiddleware *graphics)
 {
@@ -339,10 +414,10 @@ void xstarchk()
 }
 //----"Moovfc2.cpp"
 // procedurile legate de nava
-void muta_nava()
+void muta_nava(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
 {
   int dif, i, fostx = shipx;
-  mousedata(but, x, y);
+  logic->mouseState(&x, &y, &mouse_btn);
   extipnav = tipnav;
   if (x != 96)
   {
@@ -362,8 +437,8 @@ void muta_nava()
     if (dif == 0)
       tipnav = 0;
     //^clarificarea diferentelor^
-    mousemove(100, 100);
-    negru(shp0, shipx, 350);
+    logic->mousemove(100, 100);
+    negru(graphics, shp0, shipx, 350);
     shipx = shipx + dif;
     if (shipx < 1)
       shipx = 1;
@@ -375,7 +450,7 @@ void muta_nava()
   else
     waiter++;
   if (x != 96 || tipnav != extipnav)
-    negru(shp0, fostx, 350);
+    negru(graphics, shp0, fostx, 350);
   if (extipnav != tipnav)
   {
     switch (tipnav)
@@ -393,14 +468,14 @@ void muta_nava()
     waiter = 0;
   }
   if (x != 96 || tipnav != extipnav)
-    scotmem(shp0, shipx, 350);
+    scotmem(graphics, shp0, shipx, 350);
 }
 
 // procedurile legate de inamici
-void init_inamic(ENEMY &p)
+void init_inamic(ILogicMiddleware *logic, ENEMY &p)
 {
   int i, k, uniq = 1;
-  k = random(405) + 1;
+  k = logic->random(405) + 1;
   k = k / 5 * 5;
   for (i = 1; i < 10; i++)
     if (uniq && enemy[i].fel)
@@ -410,8 +485,8 @@ void init_inamic(ENEMY &p)
   if (uniq)
   {
     p.x = k;
-    p.y = random(100) - 150;
-    k = random(ship_types[0]) + 1;
+    p.y = logic->random(100) - 150;
+    k = logic->random(ship_types[0]) + 1;
     p.fel = ship_types[k];
     switch (p.fel)
     {
@@ -439,7 +514,7 @@ void init_inamic(ENEMY &p)
     cur_enemy++;
   }
 }
-void init_inamici()
+void init_inamici(ILogicMiddleware *logic)
 {
   int i, k;
   putmem("Gamedata\\enemy1.dta", 0, enm1);
@@ -450,9 +525,9 @@ void init_inamici()
   for (i = 1; i <= ship_types[0]; i++)
     if (cur_enemy < max_enemy)
     {
-      k = random(ship_often) + 1;
+      k = logic->random(ship_often) + 1;
       if (k == 1)
-        init_inamic(enemy[i]);
+        init_inamic(logic, enemy[i]);
     }
 }
 void muta_inamici(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
@@ -509,7 +584,7 @@ void muta_inamici(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
     {
       k = logic->random(ship_often) + 1;
       if (k == 1)
-        init_inamic(enemy[i]);
+        init_inamic(logic, enemy[i]);
     }
 }
 // procedurile legate de aasteroizi
@@ -533,7 +608,7 @@ void init_aster(ILogicMiddleware *logic, ASTEROID &p)
     cur_aster++;
   }
 }
-void muta_aster(IGraphicsMiddleware *graphics)
+void muta_aster(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
 {
   int i, k;
   for (i = 1; i < 7; i++)
@@ -542,10 +617,10 @@ void muta_aster(IGraphicsMiddleware *graphics)
       switch (aster[i].fel)
       {
       case 1:
-        x_negru45(ast1, aster[i].x, aster[i].y, aster[i].vit);
+        x_negru45(graphics, ast1, aster[i].x, aster[i].y, aster[i].vit);
         break;
       case 2:
-        x_negru45(ast2, aster[i].x, aster[i].y, aster[i].vit);
+        x_negru45(graphics, ast2, aster[i].x, aster[i].y, aster[i].vit);
         break;
       }
       aster[i].y += aster[i].vit;
@@ -567,9 +642,9 @@ void muta_aster(IGraphicsMiddleware *graphics)
     }
     else if (cur_aster < max_aster)
     {
-      k = random(aster_often) + 1;
+      k = logic->random(aster_often) + 1;
       if (k == 1)
-        init_aster(aster[i]);
+        init_aster(logic, aster[i]);
     }
 }
 
@@ -586,7 +661,7 @@ void init_bonus(ILogicMiddleware *logic)
     bonus.vit = logic->random(3) + 5;
   }
 }
-void muta_bonus()
+void muta_bonus(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
 {
   if (bonus.fel)
   {
@@ -605,21 +680,21 @@ void muta_bonus()
       give15(bns4, aux15);
       break;
     }
-    x_negru15(aux15, bonus.x, bonus.y, bonus.vit);
+    x_negru15(graphics, aux15, bonus.x, bonus.y, bonus.vit);
     bonus.y += bonus.vit;
     if (bonus.y < 400)
-      scotmem15(aux15, bonus.x, bonus.y);
+      scotmem15(graphics, aux15, bonus.x, bonus.y);
     else
       bonus.fel = 0;
   }
   else if (!victory && !goodbye)
-    init_bonus();
+    init_bonus(logic);
 }
 // procedurile legate de gloante
-void init_glont_en(GLONT &p, int i)
+void init_glont_en(ILogicMiddleware *logic, GLONT &p, int i)
 {
   int k;
-  k = random(fire_often) + 1;
+  k = logic->random(fire_often) + 1;
   if (k == 1)
     if (enemy[i].fel && enemy[i].foc == 0)
     {
@@ -664,7 +739,7 @@ void init_gloante()
     bullet[i].dir = 0;
   }
 }
-void muta_gloante_en()
+void muta_gloante_en(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
 {
   int i, k;
   for (i = 1; i < 10; i++)
@@ -673,19 +748,19 @@ void muta_gloante_en()
       switch (bullet[i].fel)
       {
       case 1:
-        x_negru15(blt1, bullet[i].x, bullet[i].y, bullet[i].vit);
+        x_negru15(graphics, blt1, bullet[i].x, bullet[i].y, bullet[i].vit);
         break;
       case 2:
-        x_negru15(blt2, bullet[i].x, bullet[i].y, bullet[i].vit);
+        x_negru15(graphics, blt2, bullet[i].x, bullet[i].y, bullet[i].vit);
         break;
       case 3:
-        x_negru15(blt3, bullet[i].x, bullet[i].y, bullet[i].vit);
+        x_negru15(graphics, blt3, bullet[i].x, bullet[i].y, bullet[i].vit);
         break;
       case 4:
-        x_negru15(blt4, bullet[i].x, bullet[i].y, bullet[i].vit);
+        x_negru15(graphics, blt4, bullet[i].x, bullet[i].y, bullet[i].vit);
         break;
       case 5:
-        x_negru15(blt5, bullet[i].x, bullet[i].y, bullet[i].vit);
+        x_negru15(graphics, blt5, bullet[i].x, bullet[i].y, bullet[i].vit);
         break;
       }
       bullet[i].y += bullet[i].vit * bullet[i].dir;
@@ -698,24 +773,24 @@ void muta_gloante_en()
         switch (bullet[i].fel)
         {
         case 1:
-          scotmem15(blt1, bullet[i].x, bullet[i].y);
+          scotmem15(graphics, blt1, bullet[i].x, bullet[i].y);
           break;
         case 2:
-          scotmem15(blt2, bullet[i].x, bullet[i].y);
+          scotmem15(graphics, blt2, bullet[i].x, bullet[i].y);
           break;
         case 3:
-          scotmem15(blt3, bullet[i].x, bullet[i].y);
+          scotmem15(graphics, blt3, bullet[i].x, bullet[i].y);
           break;
         case 4:
-          scotmem15(blt4, bullet[i].x, bullet[i].y);
+          scotmem15(graphics, blt4, bullet[i].x, bullet[i].y);
           break;
         case 5:
-          scotmem15(blt5, bullet[i].x, bullet[i].y);
+          scotmem15(graphics, blt5, bullet[i].x, bullet[i].y);
           break;
         }
     }
     else
-      init_glont_en(bullet[i], i);
+      init_glont_en(logic, bullet[i], i);
 }
 void init_glont_sh(int gl)
 {
@@ -847,12 +922,12 @@ void anim_explozii(IGraphicsMiddleware *graphics)
       }
     }
 }
-void show_initial_ship_life()
+void show_initial_ship_life(IGraphicsMiddleware *graphics)
 {
   int i;
-  setcolor(100);
+  graphics->setcolor(100);
   for (i = 1; i < shiplife; i++)
-    line(504 + i, 203, 504 + i, 225);
+    graphics->line(504 + i, 203, 504 + i, 225);
 }
 void regl_ship_life() // va regla pct. de viata
 {
@@ -861,55 +936,55 @@ void regl_ship_life() // va regla pct. de viata
   if (shiplife > 115)
     shiplife = 115;
 }
-void show_ship_life()
+void show_ship_life(IGraphicsMiddleware *graphics)
 {
   int i;
   if (shiplife < exshiplife)
   {
-    setcolor(255);
+    graphics->setcolor(255);
     for (i = exshiplife; i > shiplife; i--)
-      line(504 + i, 203, 504 + i, 225);
+      graphics->line(504 + i, 203, 504 + i, 225);
   }
   else
   {
-    setcolor(100);
+    graphics->setcolor(100);
     for (i = exshiplife; i < shiplife; i++)
-      line(504 + i, 203, 504 + i, 225);
+      graphics->line(504 + i, 203, 504 + i, 225);
   }
 }
-void show_cash()
+void show_cash(IGraphicsMiddleware *graphics)
 {
   char p[10] = "\0";
   sprintf(p, "%d", excash);
-  setcolor(255);
-  outtextxy(510, 11, p);
+  graphics->setcolor(255);
+  graphics->outtextxy(510, 11, p);
   sprintf(p, "%d", cash);
-  setcolor(34);
-  outtextxy(510, 11, p);
+  graphics->setcolor(34);
+  graphics->outtextxy(510, 11, p);
 }
-void show_mun1()
+void show_mun1(IGraphicsMiddleware *graphics)
 {
   char p[10] = "\0";
   sprintf(p, "%d", exmun1);
-  setcolor(255);
-  outtextxy(520, 110, p);
+  graphics->setcolor(255);
+  graphics->outtextxy(520, 110, p);
   sprintf(p, "%d", mun1);
-  setcolor(34);
-  outtextxy(520, 110, p);
+  graphics->setcolor(34);
+  graphics->outtextxy(520, 110, p);
 }
-void show_mun2()
+void show_mun2(IGraphicsMiddleware *graphics)
 {
   char p[10] = "\0";
   sprintf(p, "%d", exmun2);
-  setcolor(255);
-  outtextxy(520, 150, p);
+  graphics->setcolor(255);
+  graphics->outtextxy(520, 150, p);
   sprintf(p, "%d", mun2);
-  setcolor(34);
-  outtextxy(520, 150, p);
+  graphics->setcolor(34);
+  graphics->outtextxy(520, 150, p);
 }
-void show_ship()
+void show_ship(IGraphicsMiddleware *graphics)
 {
-  scotmem(shp0, shipx, 350);
+  scotmem(graphics, shp0, shipx, 350);
 }
 int impact45(unsigned char matr1[45][45], unsigned char matr2[45][45], int difx, int dify)
 {
@@ -991,7 +1066,7 @@ int impact15(unsigned char matr1[45][45], unsigned char matr2[15][15], int difx,
           }
   return vl_ret;
 }
-void impact_nava()
+void impact_nava(IGraphicsMiddleware *graphics)
 {
   int difx = 0, dify = 0;
   for (i = 0; i < 10; i++)
@@ -1025,12 +1100,12 @@ void impact_nava()
           shiplife -= 4 * enemy[i].hlt;
           regl_ship_life();
           enemy[i].hlt = 0;
-          show_ship_life();
+          show_ship_life(graphics);
         }
       }
     }
 }
-void impact_bullets_nava()
+void impact_bullets_nava(IGraphicsMiddleware *graphics)
 {
   int i, difx = 0, dify = 0;
   for (i = 0; i < 10; i++)
@@ -1061,21 +1136,21 @@ void impact_bullets_nava()
           }
           if (impact15(shp0, aux15, difx, dify))
           {
-            negru15(aux15, bullet[i].x, bullet[i].y);
+            negru15(graphics, aux15, bullet[i].x, bullet[i].y);
             exshiplife = shiplife;
             if (bullet[i].fel == 1)
               shiplife -= 2;
             else
               shiplife -= 3;
             regl_ship_life();
-            show_ship_life();
+            show_ship_life(graphics);
             bullet[i].fel = 0;
             enemy[i].foc = 0;
           }
         }
     }
 }
-void impact_bullets()
+void impact_bullets(IGraphicsMiddleware *graphics)
 {
   int i, j, difx = 0, dify = 0;
   for (j = 10; j < 20; j++)
@@ -1094,26 +1169,26 @@ void impact_bullets()
             switch (bullet[j].fel)
             {
             case 1:
-              negru15(blt1, bullet[j].x, bullet[j].y);
+              negru15(graphics, blt1, bullet[j].x, bullet[j].y);
               break;
             case 2:
-              negru15(blt2, bullet[j].x, bullet[j].y);
+              negru15(graphics, blt2, bullet[j].x, bullet[j].y);
               break;
             case 3:
-              negru15(blt3, bullet[j].x, bullet[j].y);
+              negru15(graphics, blt3, bullet[j].x, bullet[j].y);
               break;
             case 4:
-              negru15(blt4, bullet[j].x, bullet[j].y);
+              negru15(graphics, blt4, bullet[j].x, bullet[j].y);
               break;
             case 5:
-              negru15(blt5, bullet[j].x, bullet[j].y);
+              negru15(graphics, blt5, bullet[j].x, bullet[j].y);
               break;
             }
             bullet[j].fel = 0;
           }
       }
 }
-void impact_bullets_aster()
+void impact_bullets_aster(IGraphicsMiddleware *graphics)
 {
   int i, j, difx = 0, dify = 0;
   for (j = 10; j < 20; j++)
@@ -1132,26 +1207,26 @@ void impact_bullets_aster()
             switch (bullet[j].fel)
             {
             case 1:
-              negru15(blt1, bullet[j].x, bullet[j].y);
+              negru15(graphics, blt1, bullet[j].x, bullet[j].y);
               break;
             case 2:
-              negru15(blt2, bullet[j].x, bullet[j].y);
+              negru15(graphics, blt2, bullet[j].x, bullet[j].y);
               break;
             case 3:
-              negru15(blt3, bullet[j].x, bullet[j].y);
+              negru15(graphics, blt3, bullet[j].x, bullet[j].y);
               break;
             case 4:
-              negru15(blt4, bullet[j].x, bullet[j].y);
+              negru15(graphics, blt4, bullet[j].x, bullet[j].y);
               break;
             case 5:
-              negru15(blt5, bullet[j].x, bullet[j].y);
+              negru15(graphics, blt5, bullet[j].x, bullet[j].y);
               break;
             }
             bullet[j].fel = 0;
           }
       }
 }
-void impact_aster()
+void impact_aster(IGraphicsMiddleware *graphics)
 {
   int difx = 0, dify = 0;
   for (i = 0; i < 7; i++)
@@ -1176,12 +1251,12 @@ void impact_aster()
           shiplife -= 4 * aster[i].hlt;
           regl_ship_life();
           aster[i].hlt = 0;
-          show_ship_life();
+          show_ship_life(graphics);
         }
       }
     }
 }
-void impact_boom() // impact intre nava si explozii
+void impact_boom(IGraphicsMiddleware *graphics) // impact intre nava si explozii
 {
   int difx = 0, dify = 0;
   if (shiplife > 0)
@@ -1191,10 +1266,10 @@ void impact_boom() // impact intre nava si explozii
         difx = shipx - explo[i].x;
         dify = 350 - explo[i].y;
         if (abs(difx) < 45 && abs(dify) < 45)
-          show_ship();
+          show_ship(graphics);
       }
 }
-void impact_bonus()
+void impact_bonus(IGraphicsMiddleware *graphics)
 {
   int i, difx = 0, dify = 0;
   for (i = 0; i < 10; i++)
@@ -1222,33 +1297,33 @@ void impact_bonus()
           }
           if (impact15(shp0, aux15, difx, dify))
           {
-            negru15(aux15, bonus.x, bonus.y);
-            show_ship();
+            negru15(graphics, aux15, bonus.x, bonus.y);
+            show_ship(graphics);
             switch (bonus.fel)
             {
             case 1:
               exshiplife = shiplife;
               shiplife += 30;
               regl_ship_life();
-              show_ship_life();
+              show_ship_life(graphics);
               break;
             case 2:
               exshiplife = shiplife;
               shiplife += 15;
               regl_ship_life();
-              show_ship_life();
+              show_ship_life(graphics);
               break;
             case 3:
               if (mun1 < 32000)
                 exmun1 = mun1;
               mun1 += 70;
-              show_mun1();
+              show_mun1(graphics);
               break;
             case 4:
               if (mun2 < 32000)
                 exmun2 = mun2;
               mun2 += 35;
-              show_mun2();
+              show_mun2(graphics);
               break;
             }
             bonus.fel = 0;
@@ -1258,7 +1333,7 @@ void impact_bonus()
 }
 
 //----"Moovfc2.cpp"
-void destroy_dead()
+void destroy_dead(IGraphicsMiddleware *graphics)
 {
   for (i = 0; i < 10; i++)
     if (enemy[i].fel && enemy[i].hlt <= 0)
@@ -1266,32 +1341,32 @@ void destroy_dead()
       switch (enemy[i].fel)
       {
       case 1:
-        negru(enm1, enemy[i].x, enemy[i].y);
+        negru(graphics, enm1, enemy[i].x, enemy[i].y);
         excash = cash;
         cash += 2;
         break;
       case 2:
-        negru(enm2, enemy[i].x, enemy[i].y);
+        negru(graphics, enm2, enemy[i].x, enemy[i].y);
         excash = cash;
         cash += 1;
         break;
       case 3:
-        negru(enm3, enemy[i].x, enemy[i].y);
+        negru(graphics, enm3, enemy[i].x, enemy[i].y);
         excash = cash;
         cash += 3;
         break;
       case 4:
-        negru(enm4, enemy[i].x, enemy[i].y);
+        negru(graphics, enm4, enemy[i].x, enemy[i].y);
         excash = cash;
         cash += 2;
         break;
       case 5:
-        negru(enm5, enemy[i].x, enemy[i].y);
+        negru(graphics, enm5, enemy[i].x, enemy[i].y);
         excash = cash;
         cash += 2;
         break;
       }
-      show_cash();
+      show_cash(graphics);
       enemy[i].fel = 0;
       init_explozie(enemy[i].x, enemy[i].y);
       cur_enemy--;
@@ -1303,15 +1378,15 @@ void destroy_dead()
       switch (aster[i].fel)
       {
       case 1:
-        negru(ast1, aster[i].x, aster[i].y);
+        negru(graphics, ast1, aster[i].x, aster[i].y);
         break;
       case 2:
-        negru(ast2, aster[i].x, aster[i].y);
+        negru(graphics, ast2, aster[i].x, aster[i].y);
         break;
       }
       excash = cash;
       cash++;
-      show_cash();
+      show_cash(graphics);
       aster[i].fel = 0;
       init_explozie(aster[i].x, aster[i].y);
       cur_aster--;
@@ -1320,7 +1395,7 @@ void destroy_dead()
   {
     game_over = 1;
     init_explozie(shipx, 350);
-    negru(shp0, shipx, 350);
+    negru(graphics, shp0, shipx, 350);
     aster_often = max_enemy = max_aster = 0;
     bonus_often = 1000;
   }
@@ -1334,7 +1409,7 @@ void timpul_trece()
     timer++;
   }
 }
-void conditii_victorie()
+void conditii_victorie(IGraphicsMiddleware *graphics)
 {
   switch (mission_type)
   {
@@ -1358,19 +1433,19 @@ void conditii_victorie()
         switch (enemy[i].fel)
         {
         case 1:
-          negru(enm1, enemy[i].x, enemy[i].y);
+          negru(graphics, enm1, enemy[i].x, enemy[i].y);
           break;
         case 2:
-          negru(enm2, enemy[i].x, enemy[i].y);
+          negru(graphics, enm2, enemy[i].x, enemy[i].y);
           break;
         case 3:
-          negru(enm3, enemy[i].x, enemy[i].y);
+          negru(graphics, enm3, enemy[i].x, enemy[i].y);
           break;
         case 4:
-          negru(enm4, enemy[i].x, enemy[i].y);
+          negru(graphics, enm4, enemy[i].x, enemy[i].y);
           break;
         case 5:
-          negru(enm5, enemy[i].x, enemy[i].y);
+          negru(graphics, enm5, enemy[i].x, enemy[i].y);
           break;
         }
         enemy[i].fel = 0;
@@ -1383,19 +1458,19 @@ void conditii_victorie()
         switch (aster[i].fel)
         {
         case 1:
-          negru(ast1, aster[i].x, aster[i].y);
+          negru(graphics, ast1, aster[i].x, aster[i].y);
           break;
         case 2:
-          negru(ast2, aster[i].x, aster[i].y);
+          negru(graphics, ast2, aster[i].x, aster[i].y);
           break;
         }
         aster[i].fel = 0;
         init_explozie(aster[i].x, aster[i].y);
         cur_aster--;
       }
-    negru(shp0, shipx, 350);
+    negru(graphics, shp0, shipx, 350);
     give(shp1, shp0);
-    scotmem(shp1, shipx, 350);
+    scotmem(graphics, shp1, shipx, 350);
     aster_often = max_enemy = max_aster = 0;
     bonus_often = 1000;
   }
@@ -1420,7 +1495,7 @@ void load_map(char *untext)
   exmun2 = mun2;
   fclose(f);
 }
-void init_joc_nou(IGraphicsMiddleware *graphics, char *harta)
+void init_joc_nou(IGraphicsMiddleware *graphics, ILogicMiddleware *logic, char *harta)
 {
   int i;
   cur_enemy = 0;
@@ -1448,7 +1523,7 @@ void init_joc_nou(IGraphicsMiddleware *graphics, char *harta)
   putmem15("GameData\\Bullets.dta", 255 * 2, blt3);
   exshiplife = shiplife = 115;
   bonus.fel = 0;
-  settextstyle(2, 0, 9);
+  graphics->settextstyle(2, 0, 9);
   cash = 0;
   kills = 0;
   timer = 0;
@@ -1457,10 +1532,10 @@ void init_joc_nou(IGraphicsMiddleware *graphics, char *harta)
   paleta = "Freedom.pal";
   printfile(graphics, 450, 0, "Imagdata\\In_menu.dta", 190, 400);
   load_map(harta);
-  show_cash();
-  show_mun1();
-  show_mun2();
-  luminare(2);
+  show_cash(graphics);
+  show_mun1(graphics);
+  show_mun2(graphics);
+  luminare(graphics, logic, 2);
   for (i = 1; i < 10; i++)
   {
     enemy[i].fel = enemy[i].x = enemy[i].y = enemy[i].vit = enemy[i].foc = 0;
@@ -1477,7 +1552,7 @@ void init_joc_nou(IGraphicsMiddleware *graphics, char *harta)
   player_terminate = 0;
   victory = 0;
 }
-void tell_mission_type()
+void tell_mission_type(IGraphicsMiddleware *graphics)
 {
   char s[20], s1[20];
   switch (mission_type)
@@ -1495,19 +1570,19 @@ void tell_mission_type()
     sprintf(s1, "credite(bani).");
     break;
   }
-  settextstyle(2, 0, 6);
-  outtextxy(480, 260, "Scopul misiunii");
-  outtextxy(480, 270, "_______________");
-  outtextxy(480, 310, s);
-  outtextxy(475, 325, s1);
-  settextstyle(2, 0, 9);
+  graphics->settextstyle(2, 0, 6);
+  graphics->outtextxy(480, 260, "Scopul misiunii");
+  graphics->outtextxy(480, 270, "_______________");
+  graphics->outtextxy(480, 310, s);
+  graphics->outtextxy(475, 325, s1);
+  graphics->settextstyle(2, 0, 9);
 }
-void quit_question()
+void quit_question(IGraphicsMiddleware *graphics)
 {
   int i, go_on = 0;
   char c;
-  write_file("SWAP.dta", 135, 125, 270, 150);
-  printfile(135, 125, "Imagdata\\Quit.dta", 270, 150);
+  write_file(graphics, "SWAP.dta", 135, 125, 270, 150);
+  printfile(graphics, 135, 125, "Imagdata\\Quit.dta", 270, 150);
   do
   {
     c = getch();
@@ -1520,50 +1595,50 @@ void quit_question()
     if (c == 27)
       go_on = 1;
   } while (!go_on);
-  printfile(135, 125, "SWAP.dta", 270, 150);
+  printfile(graphics, 135, 125, "SWAP.dta", 270, 150);
 }
 
 void game(IGraphicsMiddleware *graphics, ILogicMiddleware *logic, char *harta)
 {
   char tasta;
-  init_joc_nou(harta);
+  init_joc_nou(graphics, logic, harta);
   init_stele(logic);
   init_culori_stele(graphics);
-  init_inamici();
+  init_inamici(logic);
   init_gloante();
-  show_initial_ship_life();
-  tell_mission_type();
+  show_initial_ship_life(graphics);
+  tell_mission_type(graphics);
   scotmem(graphics, shp0, shipx, 350);
   do
   {
-    muta_stele(graphics);
-    muta_nava();
-    muta_gloante_en();
-    muta_inamici(graphics);
-    muta_aster(graphics);
+    muta_stele(graphics, logic);
+    muta_nava(graphics, logic);
+    muta_gloante_en(graphics, logic);
+    muta_inamici(graphics, logic);
+    muta_aster(graphics, logic);
     muta_gloante_sh(graphics);
-    muta_bonus();
-    impact_nava();
-    impact_aster();
-    impact_bullets();
-    impact_bullets_aster();
-    impact_bullets_nava();
-    impact_bonus();
-    destroy_dead();
-    conditii_victorie();
-    anim_explozii();
-    impact_boom();
-    if (but == 1 && mun1 > 0)
+    muta_bonus(graphics, logic);
+    impact_nava(graphics);
+    impact_aster(graphics);
+    impact_bullets(graphics);
+    impact_bullets_aster(graphics);
+    impact_bullets_nava(graphics);
+    impact_bonus(graphics);
+    destroy_dead(graphics);
+    conditii_victorie(graphics);
+    anim_explozii(graphics);
+    impact_boom(graphics);
+    if (mouse_btn == 1 && mun1 > 0)
     {
       exmun1 = mun1;
       init_glont_sh(1);
-      show_mun1();
+      show_mun1(graphics);
     }
-    if (but == 2 && mun2 > 0)
+    if (mouse_btn == 2 && mun2 > 0)
     {
       exmun2 = mun2;
       init_glont_sh(2);
-      show_mun2();
+      show_mun2(graphics);
     }
     if (fwaiter < 100)
       fwaiter++;
@@ -1573,7 +1648,7 @@ void game(IGraphicsMiddleware *graphics, ILogicMiddleware *logic, char *harta)
     {
       c = getch();
       if (c == 27)
-        quit_question();
+        quit_question(graphics);
     }
   } while (!game_over && !temp_bye && !goodbye && !victory);
   if (game_over)
@@ -1581,16 +1656,16 @@ void game(IGraphicsMiddleware *graphics, ILogicMiddleware *logic, char *harta)
     for (kk = 1; kk <= 100; kk++)
     {
       muta_stele(graphics, logic);
-      muta_gloante_en();
+      muta_gloante_en(graphics, logic);
       muta_inamici(graphics, logic);
-      muta_aster(graphics);
+      muta_aster(graphics, logic);
       muta_gloante_sh(graphics);
-      muta_bonus();
+      muta_bonus(graphics, logic);
       anim_explozii(graphics);
       logic->delay(8);
     }
     xstardel(graphics);
-    printfile(135, 125, "Imagdata\\Youdied.dta", 270, 150);
+    printfile(graphics, 135, 125, "Imagdata\\Youdied.dta", 270, 150);
     xstarchk();
     do
     {
@@ -1610,23 +1685,23 @@ void game(IGraphicsMiddleware *graphics, ILogicMiddleware *logic, char *harta)
     for (kk = 1; kk <= 100; kk++)
     {
       muta_stele(graphics, logic);
-      muta_gloante_en();
+      muta_gloante_en(graphics, logic);
       muta_inamici(graphics, logic);
-      muta_aster(graphics);
+      muta_aster(graphics, logic);
       muta_gloante_sh(graphics);
-      muta_bonus();
-      impact_bullets_nava();
+      muta_bonus(graphics, logic);
+      impact_bullets_nava(graphics);
       anim_explozii(graphics);
-      show_ship();
+      show_ship(graphics);
       logic->delay(8);
     }
-    xstardel();
-    printfile(135, 125, "Imagdata\\Youwon.dta", 270, 150);
+    xstardel(graphics);
+    printfile(graphics, 135, 125, "Imagdata\\Youwon.dta", 270, 150);
     xstarchk();
     do
     {
-      muta_stele();
-      delay(8);
+      muta_stele(graphics, logic);
+      logic->delay(8);
       if (kbhit())
       {
         c = getch();
@@ -1637,149 +1712,149 @@ void game(IGraphicsMiddleware *graphics, ILogicMiddleware *logic, char *harta)
     temp_bye = 0;
   }
 }
-void ecran_intro(int cm, char s_prim[25])
+void ecran_intro(IGraphicsMiddleware *graphics, ILogicMiddleware *logic, int cm, char s_prim[25])
 {
   char s[25], c;
-  load_palette("Imagdata\\loading.pal", 0);
-  cleardevice();
-  setcolor(254);
-  rectangle(149, 149, 450, 250);
+  load_palette(graphics, "Imagdata\\loading.pal", 0);
+  graphics->cleardevice();
+  graphics->setcolor(254);
+  graphics->rectangle(149, 149, 450, 250);
   paleta = "Imagdata\\loading.pal";
-  printfile(150, 150, "Imagdata\\Loading.dta", 300, 100);
+  printfile(graphics, 150, 150, "Imagdata\\Loading.dta", 300, 100);
   sprintf(s, "Misiunea cu numarul:%d", cm);
-  settextstyle(2, 0, 5);
-  outtextxy(160, 160, s);
-  outtextxy(160, 175, s_prim);
-  outtextxy(160, 190, "Apasa <Enter> pt. a continua");
-  luminare(2);
+  graphics->settextstyle(2, 0, 5);
+  graphics->outtextxy(160, 160, s);
+  graphics->outtextxy(160, 175, s_prim);
+  graphics->outtextxy(160, 190, "Apasa <Enter> pt. a continua");
+  luminare(graphics, logic, 2);
   do
   {
     c = getch();
   } while (c != 13);
-  intunecare(2);
+  intunecare(graphics, logic, 2);
   paleta = "Freedom.pal";
-  cleardevice();
+  graphics->cleardevice();
 }
-void ecran_victorie()
+void ecran_victorie(IGraphicsMiddleware *graphics)
 {
   char c;
-  cleardevice();
-  setcolor(100);
-  rectangle(150, 150, 400, 250);
-  settextstyle(2, 0, 5);
-  outtextxy(160, 160, "Ai terminat toate misiunile.");
-  outtextxy(160, 175, "Acesta a fost DEMO-ul jocului.");
-  outtextxy(160, 190, "Vrei mai mult? Incearca tot jocul!");
-  outtextxy(160, 205, "Apasa <Enter> pt. a continua.");
+  graphics->cleardevice();
+  graphics->setcolor(100);
+  graphics->rectangle(150, 150, 400, 250);
+  graphics->settextstyle(2, 0, 5);
+  graphics->outtextxy(160, 160, "Ai terminat toate misiunile.");
+  graphics->outtextxy(160, 175, "Acesta a fost DEMO-ul jocului.");
+  graphics->outtextxy(160, 190, "Vrei mai mult? Incearca tot jocul!");
+  graphics->outtextxy(160, 205, "Apasa <Enter> pt. a continua.");
   do
   {
     c = getch();
   } while (c != 13);
 }
 
-void jocnou()
+void jocnou(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
 {
-  ecran_intro(1, "Maps\\Map1.map");
-  game("Maps\\Map1.map");
+  ecran_intro(graphics, logic, 1, "Maps\\Map1.map");
+  game(graphics, logic, "Maps\\Map1.map");
   if (!game_over && !player_terminate)
   {
-    ecran_intro(2, "Maps\\Map2.map");
-    game("Maps\\Map2.map");
+    ecran_intro(graphics, logic, 2, "Maps\\Map2.map");
+    game(graphics, logic, "Maps\\Map2.map");
   }
   if (!game_over && !player_terminate)
   {
-    ecran_intro(3, "Maps\\Map3.map");
-    game("Maps\\Map3.map");
+    ecran_intro(graphics, logic, 3, "Maps\\Map3.map");
+    game(graphics, logic, "Maps\\Map3.map");
   }
   if (!game_over && !player_terminate)
   {
-    ecran_intro(4, "Maps\\Map4.map");
-    game("Maps\\Map4.map");
+    ecran_intro(graphics, logic, 4, "Maps\\Map4.map");
+    game(graphics, logic, "Maps\\Map4.map");
   }
   if (!game_over && !player_terminate)
   {
-    ecran_intro(5, "Maps\\Map5.map");
-    game("Maps\\Map5.map");
+    ecran_intro(graphics, logic, 5, "Maps\\Map5.map");
+    game(graphics, logic, "Maps\\Map5.map");
   }
   if (!game_over && !player_terminate)
   {
-    ecran_intro(6, "Maps\\Map6.map");
-    game("Maps\\Map6.map");
+    ecran_intro(graphics, logic, 6, "Maps\\Map6.map");
+    game(graphics, logic, "Maps\\Map6.map");
   }
   if (!game_over && !player_terminate)
   {
-    ecran_intro(7, "Maps\\Map7.map");
-    game("Maps\\Map7.map");
+    ecran_intro(graphics, logic, 7, "Maps\\Map7.map");
+    game(graphics, logic, "Maps\\Map7.map");
   }
   if (!game_over && !player_terminate)
   {
-    ecran_intro(8, "Maps\\Map8.map");
-    game("Maps\\Map8.map");
+    ecran_intro(graphics, logic, 8, "Maps\\Map8.map");
+    game(graphics, logic, "Maps\\Map8.map");
   }
   if (!game_over && !player_terminate)
   {
-    ecran_intro(9, "Maps\\Map9.map");
-    game("Maps\\Map9.map");
+    ecran_intro(graphics, logic, 9, "Maps\\Map9.map");
+    game(graphics, logic, "Maps\\Map9.map");
   }
   if (!game_over && !player_terminate)
   {
-    ecran_intro(10, "Maps\\Map10.map");
-    game("Maps\\Map10.map");
+    ecran_intro(graphics, logic, 10, "Maps\\Map10.map");
+    game(graphics, logic, "Maps\\Map10.map");
   }
   if (!game_over && !player_terminate)
-    ecran_victorie();
+    ecran_victorie(graphics);
 }
 // #include "Logo.cpp"
-void logofunc()
+void logofunc(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
 {
   int waiter = 0;
   paleta = "Imagdata\\Logo.pal";
-  printfile(0, 0, "Imagdata\\Logo.dta", 640, 400);
-  settextstyle(2, 0, 5);
-  setcolor(252);
-  outtextxy(5, 5, "O productie Gusty-2001");
-  luminare(2);
+  printfile(graphics, 0, 0, "Imagdata\\Logo.dta", 640, 400);
+  graphics->settextstyle(2, 0, 5);
+  graphics->setcolor(252);
+  graphics->outtextxy(5, 5, "O productie Gusty-2001");
+  luminare(graphics, logic, 2);
   do
   {
     waiter++;
-    delay(20);
+    logic->delay(20);
   } while (!kbhit() && waiter < 350);
   if (kbhit())
     getch();
-  intunecare(2);
-  cleardevice();
+  intunecare(graphics, logic, 2);
+  graphics->cleardevice();
 }
 // Logo.cpp
 
 //------
 
-void optiuni()
+void optiuni(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
 {
   int i, xex, byenow = 0;
   char c, *s;
-  printfile(230, 185, "Imagdata\\Nobuts.dta", 180, 215);
+  printfile(graphics, 230, 185, "Imagdata\\Nobuts.dta", 180, 215);
   putmem("Imagdata\\Sistem.dta", 0, shp0);
-  setcolor(0);
+  graphics->setcolor(0);
   for (i = 35; i < 90; i++)
-    line(110, i, 500, i);
-  setcolor(255);
-  rectangle(110, 35, 500, 90);
+    graphics->line(110, i, 500, i);
+  graphics->setcolor(255);
+  graphics->rectangle(110, 35, 500, 90);
   xex = 120 + (luminozitate - 0.7) * 10 * 40;
-  scotmem(shp0, xex, 40);
-  setcolor(255);
-  settextstyle(2, 0, 5);
-  outtextxy(35, 250, "Apasa <ESC> pt. �ntoarcere �n meniul principal.");
-  outtextxy(25, 110, "Apasa tastele 1..9 pentru a modifica luminozitatea imaginii.");
-  outtextxy(50, 145, "Control:");
-  outtextxy(30, 155, "Buton mouse stanga=> foc primar (bila energica).");
-  outtextxy(30, 165, "Buton mouse dreapta=> foc secundar (tun laser).");
-  outtextxy(30, 175, "Miscare mouse stanga-dreapta => miscare nava");
-  outtextxy(450, 385, "O productie Gusty-2001");
-  luminare(2);
+  scotmem(graphics, shp0, xex, 40);
+  graphics->setcolor(255);
+  graphics->settextstyle(2, 0, 5);
+  graphics->outtextxy(35, 250, "Apasa <ESC> pt. �ntoarcere �n meniul principal.");
+  graphics->outtextxy(25, 110, "Apasa tastele 1..9 pentru a modifica luminozitatea imaginii.");
+  graphics->outtextxy(50, 145, "Control:");
+  graphics->outtextxy(30, 155, "Buton mouse stanga=> foc primar (bila energica).");
+  graphics->outtextxy(30, 165, "Buton mouse dreapta=> foc secundar (tun laser).");
+  graphics->outtextxy(30, 175, "Miscare mouse stanga-dreapta => miscare nava");
+  graphics->outtextxy(450, 385, "O productie Gusty-2001");
+  luminare(graphics, logic, 2);
   for (i = 1; i < 10; i++)
   {
     sprintf(s, "%d", i);
-    outtextxy(100 + 40 * i, 90, s);
+    graphics->outtextxy(100 + 40 * i, 90, s);
   }
   do
   {
@@ -1790,118 +1865,118 @@ void optiuni()
       switch (c)
       {
       case '1':
-        negru(shp0, xex, 40);
+        negru(graphics, shp0, xex, 40);
         luminozitate = 0.7;
         xex = 120 + (luminozitate - 0.7) * 10 * 40;
-        scotmem(shp0, xex, 40);
-        load_palette(paleta, luminozitate);
+        scotmem(graphics, shp0, xex, 40);
+        load_palette(graphics, paleta, luminozitate);
         break;
       case '2':
-        negru(shp0, xex, 40);
+        negru(graphics, shp0, xex, 40);
         luminozitate = 0.8;
         xex = 120 + (luminozitate - 0.7) * 10 * 40;
-        scotmem(shp0, xex, 40);
-        load_palette(paleta, luminozitate);
+        scotmem(graphics, shp0, xex, 40);
+        load_palette(graphics, paleta, luminozitate);
         break;
       case '3':
-        negru(shp0, xex, 40);
+        negru(graphics, shp0, xex, 40);
         luminozitate = 0.9;
         xex = 120 + (luminozitate - 0.7) * 10 * 40;
-        scotmem(shp0, xex, 40);
-        load_palette(paleta, luminozitate);
+        scotmem(graphics, shp0, xex, 40);
+        load_palette(graphics, paleta, luminozitate);
         break;
       case '4':
-        negru(shp0, xex, 40);
+        negru(graphics, shp0, xex, 40);
         luminozitate = 1;
         xex = 120 + (luminozitate - 0.7) * 10 * 40;
-        scotmem(shp0, xex, 40);
-        load_palette(paleta, luminozitate);
+        scotmem(graphics, shp0, xex, 40);
+        load_palette(graphics, paleta, luminozitate);
         break;
       case '5':
-        negru(shp0, xex, 40);
+        negru(graphics, shp0, xex, 40);
         luminozitate = 1.1;
         xex = 120 + (luminozitate - 0.7) * 10 * 40;
-        scotmem(shp0, xex, 40);
-        load_palette(paleta, luminozitate);
+        scotmem(graphics, shp0, xex, 40);
+        load_palette(graphics, paleta, luminozitate);
         break;
       case '6':
-        negru(shp0, xex, 40);
+        negru(graphics, shp0, xex, 40);
         luminozitate = 1.2;
         xex = 120 + (luminozitate - 0.7) * 10 * 40;
-        scotmem(shp0, xex, 40);
-        load_palette(paleta, luminozitate);
+        scotmem(graphics, shp0, xex, 40);
+        load_palette(graphics, paleta, luminozitate);
         break;
       case '7':
-        negru(shp0, xex, 40);
+        negru(graphics, shp0, xex, 40);
         luminozitate = 1.3;
         xex = 120 + (luminozitate - 0.7) * 10 * 40;
-        scotmem(shp0, xex, 40);
-        load_palette(paleta, luminozitate);
+        scotmem(graphics, shp0, xex, 40);
+        load_palette(graphics, paleta, luminozitate);
         break;
       case '8':
-        negru(shp0, xex, 40);
+        negru(graphics, shp0, xex, 40);
         luminozitate = 1.4;
         xex = 120 + (luminozitate - 0.7) * 10 * 40;
-        scotmem(shp0, xex, 40);
-        load_palette(paleta, luminozitate);
+        scotmem(graphics, shp0, xex, 40);
+        load_palette(graphics, paleta, luminozitate);
         break;
       case '9':
-        negru(shp0, xex, 40);
+        negru(graphics, shp0, xex, 40);
         luminozitate = 1.5;
         xex = 120 + (luminozitate - 0.7) * 10 * 40;
-        scotmem(shp0, xex, 40);
-        load_palette(paleta, luminozitate);
+        scotmem(graphics, shp0, xex, 40);
+        load_palette(graphics, paleta, luminozitate);
         break;
       }
   } while (!byenow);
-  intunecare(2);
+  intunecare(graphics, logic, 2);
 }
-void credits()
+void credits(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
 {
-  printfile(230, 185, "Imagdata\\Nobuts.dta", 180, 215);
-  settextstyle(2, 0, 5);
-  setcolor(252);
-  outtextxy(5, 5, "O productie Gusty-2001");
-  outtextxy(65, 80, "Programul acesta a fost realizat integral de Preda Livius Augustin.");
-  outtextxy(25, 90, "...cunoscut si sub numele de Gusty.");
-  outtextxy(25, 100, "Doresc pe aceasta cale sa �mi salut colegii din Lic. Info.");
-  outtextxy(25, 110, "(salut!).");
-  outtextxy(30, 200, "Grafica jocului a fost realizata cu ajutorul diferitor programe");
-  outtextxy(30, 210, "de specialitate si cu ajutorul motorului grafic propriu bazat pe");
-  outtextxy(30, 220, "Converter 2000-(copyright Gusty 2001).");
-  outtextxy(30, 230, "Multumiri speciale lui Mocanu Bogdan, fara a carui contributie la");
-  outtextxy(30, 240, "dezvoltarea motorului grafic, calitatea imaginii ar fi avut de suferit");
-  outtextxy(40, 250, "Program realizat pt. ATESTAT 2002");
-  outtextxy(230, 380, "...Apasati orice tasta pt. a reveni la meniul principal.");
-  luminare(2);
+  printfile(graphics, 230, 185, "Imagdata\\Nobuts.dta", 180, 215);
+  graphics->settextstyle(2, 0, 5);
+  graphics->setcolor(252);
+  graphics->outtextxy(5, 5, "O productie Gusty-2001");
+  graphics->outtextxy(65, 80, "Programul acesta a fost realizat integral de Preda Livius Augustin.");
+  graphics->outtextxy(25, 90, "...cunoscut si sub numele de Gusty.");
+  graphics->outtextxy(25, 100, "Doresc pe aceasta cale sa �mi salut colegii din Lic. Info.");
+  graphics->outtextxy(25, 110, "(salut!).");
+  graphics->outtextxy(30, 200, "Grafica jocului a fost realizata cu ajutorul diferitor programe");
+  graphics->outtextxy(30, 210, "de specialitate si cu ajutorul motorului grafic propriu bazat pe");
+  graphics->outtextxy(30, 220, "Converter 2000-(copyright Gusty 2001).");
+  graphics->outtextxy(30, 230, "Multumiri speciale lui Mocanu Bogdan, fara a carui contributie la");
+  graphics->outtextxy(30, 240, "dezvoltarea motorului grafic, calitatea imaginii ar fi avut de suferit");
+  graphics->outtextxy(40, 250, "Program realizat pt. ATESTAT 2002");
+  graphics->outtextxy(230, 380, "...Apasati orice tasta pt. a reveni la meniul principal.");
+  luminare(graphics, logic, 2);
   getch();
 }
 
-void pune_fundal_meniu()
+void pune_fundal_meniu(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
 {
   int i;
-  cleardevice();
+  graphics->cleardevice();
   paleta = "Imagdata\\Menu.pal";
-  intunecare(2);
-  printfile(0, 0, "Imagdata\\Mainmenu.dta", 640, 400);
+  intunecare(graphics, logic, 2);
+  printfile(graphics, 0, 0, "Imagdata\\Mainmenu.dta", 640, 400);
   for (i = 185; i <= 335; i += 50)
-    printfile(230, i, "Imagdata\\Buton.dta", 180, 40);
-  settextstyle(2, 0, 8);
-  text_shadow(250, 190, "(N)ew Game", 200);
-  text_shadow(250, 240, " (O)ptions", 200);
-  text_shadow(250, 290, " (C)redits", 200);
-  text_shadow(250, 340, "  E(x)it", 200);
-  luminare(2);
+    printfile(graphics, 230, i, "Imagdata\\Buton.dta", 180, 40);
+  graphics->settextstyle(2, 0, 8);
+  text_shadow(graphics, 250, 190, "(N)ew Game", 200);
+  text_shadow(graphics, 250, 240, " (O)ptions", 200);
+  text_shadow(graphics, 250, 290, " (C)redits", 200);
+  text_shadow(graphics, 250, 340, "  E(x)it", 200);
+  luminare(graphics, logic, 2);
 }
 
-void meniu_principal()
+void meniu_principal(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
 {
   char cht;
   int comanda, gameexit;
   do
   {
     gameexit = 0;
-    pune_fundal_meniu();
+    pune_fundal_meniu(graphics, logic);
     do
     {
       comanda = 0;
@@ -1915,18 +1990,18 @@ void meniu_principal()
       if (cht == 'X' || cht == 'x')
         comanda = 4;
     } while (!comanda);
-    intunecare(2);
+    intunecare(graphics, logic, 2);
     switch (comanda)
     {
     case 1:
-      cleardevice();
-      jocnou();
+      graphics->cleardevice();
+      jocnou(graphics, logic);
       break;
     case 2:
-      optiuni();
+      optiuni(graphics, logic);
       break;
     case 3:
-      credits();
+      credits(graphics, logic);
       break;
     case 4:
       gameexit = 1;
@@ -1936,59 +2011,7 @@ void meniu_principal()
 
 //------
 
-int mxa(int i)
-{
-  int aux;
-  if (i > 63)
-    aux = 63;
-  else
-    aux = i;
-  return aux;
-}
-void load_palette(IGraphicsMiddleware *graphics, char nume[30], float intens)
-{
-  FILE *f;
-  int i, a, b, c;
-  char d;
-  f = fopen(nume, "r");
-  for (i = 0; i < 18; i++)
-    fscanf(f, "%c", &d);
-  for (i = 0; i < 256; i++)
-  {
-    fscanf(f, "%d%d%d", &a, &b, &c);
-    graphics->setrgbpalette(i, mxa(a / 4 * intens), mxa(b / 4 * intens), mxa(c / 4 * intens));
-  }
-  fclose(f);
-}
-
-void luminare(int viteza)
-{
-  float fl;
-  for (fl = 0.0; fl < luminozitate; fl += 0.1)
-  {
-    load_palette(paleta, fl);
-    delay(10 * viteza);
-  }
-  load_palette(paleta, luminozitate);
-}
-void intunecare(int viteza)
-{
-  float fl;
-  for (fl = luminozitate; fl > 0.0; fl -= 0.1)
-  {
-    load_palette(paleta, fl);
-    delay(10 * viteza);
-  }
-}
-
-void text_shadow(int x, int y, char mesaj[50], int culoare)
-{
-  setcolor(0);
-  outtextxy(x + 1, y + 1, mesaj);
-  setcolor(culoare);
-  outtextxy(x, y, mesaj);
-}
-void printfile0(int x, int y, char untext[30], int dm1, int dm2)
+void printfile0(IGraphicsMiddleware *graphics, int x, int y, char untext[30], int dm1, int dm2)
 {
   FILE *f = NULL;
   unsigned char c;
@@ -2006,38 +2029,30 @@ void printfile0(int x, int y, char untext[30], int dm1, int dm2)
     }
     for (j = 0; j < dm1; j++)
       if (c >= 33)
-        putpixel(x + j, y + i, a[j]);
+        graphics->putpixel(x + j, y + i, a[j]);
     fscanf(f, "%c", &c);
   }
   fclose(f);
 }
 
-void write_file(char *fisier, int x, int y, int dim1, int dim2)
-{
-  int i, j;
-  FILE *f;
-  char c;
-  f = fopen(fisier, "w");
-  for (j = y; j < y + dim2; j++)
-  {
-    for (i = x; i < x + dim1; i++)
-    {
-      c = getpixel(i, j);
-      if (c == 0)
-        c = 255;
-      fprintf(f, "%c", c);
-    }
-    fprintf(f, "\n");
-  }
-  fclose(f);
-}
 //---
 
-void FF2::main(void)
+void FF2::main_loop(void)
 {
-  // char tasta;
-  // initializari();
-  logofunc();
-  meniu_principal();
-  closegraph();
+  if (this->game_state_ == GAME_STATE_LOGO)
+  {
+    logofunc(graphics_, logic_);
+  }
+  else if (this->game_state_ == GAME_STATE_MENU)
+  {
+    meniu_principal(graphics_, logic_);
+  }
+  else if (this->game_state_ == GAME_STATE_GAME)
+  {
+    
+  }
+  else if (this->game_state_ == GAME_STATE_EXIT)
+  {
+    
+  }
 }

@@ -11,6 +11,8 @@ class GraphicsMiddleware : public IGraphicsMiddleware
 {
 private:
     SDL_Renderer *renderer_;
+    TTF_Font *font_;
+    SDL_Color color_;
 
     int palette_[256][3];
 
@@ -24,6 +26,9 @@ public:
             palette_[idx][1] = 0;
             palette_[idx][2] = 0;
         }
+
+        TTF_Init();
+        this->font_ = TTF_OpenFont(FONT_FILE, FONT_SIZE);
     }
     ~GraphicsMiddleware()
     {
@@ -52,6 +57,48 @@ public:
     {
         return 0;
     }
+
+    void setcolor(int color_code)
+    {
+        Uint8 alpha = 255;
+        this->color_.r = this->palette_[color_code][0];
+        this->color_.g = this->palette_[color_code][1];
+        this->color_.b = this->palette_[color_code][2];
+
+        SDL_SetRenderDrawColor(this->renderer_, this->palette_[color_code][0], this->palette_[color_code][1], this->palette_[color_code][2], alpha);
+    }
+
+    void rectangle(int x1, int y1, int x2, int y2)
+    {
+        SDL_Rect rect;
+        rect.x = x1;
+        rect.y = y1;
+        rect.w = x2 - x1;
+        rect.h = y2 - y1;
+        SDL_RenderDrawRect(this->renderer_, &rect);
+    }
+
+    void line(int x1, int y1, int x2, int y2)
+    {
+        SDL_RenderDrawLine(this->renderer_, x1, y1, x2, y2);
+    }
+
+    void outtextxy(int x, int y, const char *text)
+    {
+        SDL_Color color = this->color_;
+        SDL_Surface *surface = TTF_RenderText_Blended(this->font_, text, color);
+        SDL_Texture *texture = SDL_CreateTextureFromSurface(this->renderer_, surface);
+        int w = surface->w;
+        int h = surface->h;
+        SDL_Rect dstrect = {x, y, w, h};
+        SDL_RenderCopy(this->renderer_, texture, NULL, &dstrect);
+        SDL_FreeSurface(surface);
+        SDL_DestroyTexture(texture);
+    }
+
+    void settextstyle(int font_style, int something, int size)
+    {
+    }
 };
 
 class LogicMiddleware : public ILogicMiddleware
@@ -76,6 +123,17 @@ public:
     void delay(unsigned milliseconds)
     {
         SDL_Delay(milliseconds);
+    }
+
+    void mouseState(int *x, int *y, int *button)
+    {
+        SDL_GetMouseState(x, y);
+        *button = SDL_GetMouseState(NULL, NULL);
+    }
+
+    void mousemove(int x, int y)
+    {
+        SDL_WarpMouseInWindow(NULL, x, y);
     }
 };
 
@@ -153,6 +211,8 @@ int main(int argc, char *argv[])
                 }
             }
         }
+
+        game.main_loop();
 
         // generate a random pixel color and location
         Uint8 r = 255; // rand() % 256;
