@@ -103,9 +103,13 @@ public:
 
 class LogicMiddleware : public ILogicMiddleware
 {
+private:
+    bool any_key_pressed_;
+
 public:
     LogicMiddleware()
     {
+        this->any_key_pressed_ = false;
     }
     ~LogicMiddleware()
     {
@@ -134,6 +138,30 @@ public:
     void mousemove(int x, int y)
     {
         SDL_WarpMouseInWindow(NULL, x, y);
+    }
+
+    void setAnyKeyPressed(bool value)
+    {
+        this->any_key_pressed_ = value;
+    }
+
+    bool anyKeyPressed()
+    {
+        return this->any_key_pressed_;
+    }
+
+    bool isKeyPressed(int key)
+    {
+        SDL_Event event;
+        SDL_PollEvent(&event);
+        if (event.type == SDL_KEYDOWN)
+        {
+            if (event.key.keysym.sym == key)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 };
 
@@ -200,6 +228,8 @@ int main(int argc, char *argv[])
         // handle events
         while (SDL_PollEvent(&event))
         {
+            lm.setAnyKeyPressed(false);
+
             if (event.type == SDL_QUIT) // window closed
             {
                 isRunning = false;
@@ -210,13 +240,16 @@ int main(int argc, char *argv[])
                 {
                     isRunning = false;
                 }
+
+                lm.setAnyKeyPressed(true);
             }
         }
 
         // clear the screen
         memset(pixels, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(Uint32));
+        Uint32 delay_in_millis = 50;
 
-        game.main_loop(33);
+        game.main_loop(delay_in_millis);
 
         // generate a random pixel color and location
         // Uint8 r = 255; // rand() % 256;
@@ -224,7 +257,6 @@ int main(int argc, char *argv[])
         // Uint8 b = rand() % 256;
         // int x = rand() % SCREEN_WIDTH;
         // int y = rand() % SCREEN_HEIGHT;
-
 
         // // put the random pixel on the screen
         // putPixel(renderer, x, y, r, g, b, 255);
@@ -238,7 +270,7 @@ int main(int argc, char *argv[])
         // render the texture
 
         presentScene(renderer);
-        SDL_Delay(33);
+        SDL_Delay(delay_in_millis);
     }
 
     delete[] pixels;

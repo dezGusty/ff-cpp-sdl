@@ -28,6 +28,8 @@ long mun1, mun2, cash, exmun1, exmun2, excash, kills, timer, ltimp;
 int temp_bye = 0;     // quit pt joc in desfasurare
 int player_terminate; // idem
 
+long state_count_timer = 0;
+
 unsigned char shp1[45][45], shp2[45][45], shp3[45][45], shp0[45][45];
 unsigned char enm1[45][45], enm2[45][45], enm3[45][45], enm4[45][45], enm5[45][45];
 unsigned char bm1[45][45], bm2[45][45], bm3[45][45], bm4[45][45], bm5[45][45], bm6[45][45];
@@ -115,15 +117,15 @@ void printfile(IGraphicsMiddleware *graphics, int x, int y, char file_name[30], 
   }
 
   f = fopen(file_name, "r");
-  for (i = 0; i < dm2; i++)
+  for (int i = 0; i < dm2; i++)
   {
-    for (j = 0; j < dm1; j++)
+    for (int j = 0; j < dm1; j++)
     {
       fscanf(f, "%c", &c);
       if (c >= 33)
         a_line[j] = c;
     }
-    for (j = 0; j < dm1; j++)
+    for (int j = 0; j < dm1; j++)
       if (c >= 33)
         graphics->putpixel(x + j, y + i, a_line[j]);
     fscanf(f, "%c", &c);
@@ -1809,27 +1811,43 @@ void init_logo_state(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
 {
   load_palette(graphics, "imagdata/logo.pal", 1.0);
   printfile(graphics, 0, 0, "imagdata/logo.dta", 640, 400);
+  state_count_timer = 0;
 }
 
-void logo_state_loop(IGraphicsMiddleware *graphics, ILogicMiddleware *logic, unsigned elapsed_milliseconds)
+FF2State logo_state_loop(IGraphicsMiddleware *graphics, ILogicMiddleware *logic, unsigned elapsed_milliseconds)
 {
-  load_palette(graphics, "imagdata/logo.pal", 1.0);
+  state_count_timer += elapsed_milliseconds;
+  if (state_count_timer < 1000)
+  {
+    double luminosity = 1.0 - (double)(1000 - state_count_timer) / 1000.0;
+    load_palette(graphics, "imagdata/logo.pal", luminosity);
+  }
+  else if (state_count_timer >= 1000 && state_count_timer < 3000)
+  {
+    load_palette(graphics, "imagdata/logo.pal", 1.0);
+  }
+  else if (state_count_timer >= 3000 && state_count_timer < 4000)
+  {
+    double luminosity = 1.0 - (double)(state_count_timer - 3000) / 1000.0;
+    load_palette(graphics, "imagdata/logo.pal", luminosity);
+  }
+  else if (state_count_timer > 4000)
+  {
+    // switch to menu state
+    return FF2_STATE_MAIN_MENU;
+  }
+
+  if (logic->anyKeyPressed())
+  {
+    return FF2_STATE_MAIN_MENU;
+  }
+
   printfile(graphics, 0, 0, "imagdata/logo.dta", 640, 400);
-  int waiter = 0;
   graphics->settextstyle(2, 0, 5);
   graphics->setcolor(252);
   graphics->outtextxy(5, 5, "O productie Gusty-2001");
-  // luminare(graphics, logic, 2);
 
-  // do
-  // {
-  //   waiter++;
-  //   logic->delay(20);
-  // } while (!kbhit() && waiter < 350);
-  // if (kbhit())
-  //   getch();
-  // intunecare(graphics, logic, 2);
-  // graphics->cleardevice();
+  return FF2_STATE_LOADING_SCREEN;
 }
 // Logo.cpp
 
@@ -1962,58 +1980,46 @@ void credits(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
 void pune_fundal_meniu(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
 {
   int i;
-  graphics->cleardevice();
-  paleta = "Imagdata\\Menu.pal";
-  intunecare(graphics, logic, 2);
-  printfile(graphics, 0, 0, "Imagdata\\Mainmenu.dta", 640, 400);
+  paleta = "imagdata/menu.pal";
+  printfile(graphics, 0, 0, "imagdata/mainmenu.dta", 640, 400);
   for (i = 185; i <= 335; i += 50)
-    printfile(graphics, 230, i, "Imagdata\\Buton.dta", 180, 40);
+    printfile(graphics, 230, i, "imagdata/buton.dta", 180, 40);
   graphics->settextstyle(2, 0, 8);
   text_shadow(graphics, 250, 190, "(N)ew Game", 200);
   text_shadow(graphics, 250, 240, " (O)ptions", 200);
   text_shadow(graphics, 250, 290, " (C)redits", 200);
   text_shadow(graphics, 250, 340, "  E(x)it", 200);
-  luminare(graphics, logic, 2);
 }
 
-void meniu_principal(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
+void init_main_menu_state(IGraphicsMiddleware *graphics, ILogicMiddleware *logic)
 {
-  char cht;
-  int comanda, gameexit;
-  do
+  state_count_timer = 0;
+}
+
+FF2State main_menu_loop(IGraphicsMiddleware *graphics, ILogicMiddleware *logic, unsigned elapsed_milliseconds)
+{
+  state_count_timer += elapsed_milliseconds;
+
+  pune_fundal_meniu(graphics, logic);
+
+  if (logic->isKeyPressed('n'))
   {
-    gameexit = 0;
-    pune_fundal_meniu(graphics, logic);
-    do
-    {
-      comanda = 0;
-      cht = getch();
-      if (cht == 'N' || cht == 'n')
-        comanda = 1;
-      if (cht == 'O' || cht == 'o')
-        comanda = 2;
-      if (cht == 'C' || cht == 'c')
-        comanda = 3;
-      if (cht == 'X' || cht == 'x')
-        comanda = 4;
-    } while (!comanda);
-    intunecare(graphics, logic, 2);
-    switch (comanda)
-    {
-    case 1:
-      graphics->cleardevice();
-      jocnou(graphics, logic);
-      break;
-    case 2:
-      optiuni(graphics, logic);
-      break;
-    case 3:
-      credits(graphics, logic);
-      break;
-    case 4:
-      gameexit = 1;
-    }
-  } while (!gameexit);
+    return FF2_STATE_GAME;
+  }
+  else if (logic->isKeyPressed('o'))
+  {
+    return FF2_STATE_OPTIONS;
+  }
+  else if (logic->isKeyPressed('c'))
+  {
+    return FF2_STATE_CREDITS;
+  }
+  else if (logic->isKeyPressed('x'))
+  {
+    return FF2_STATE_EXIT;
+  }
+
+  return FF2_STATE_MAIN_MENU;
 }
 
 //------
@@ -2048,11 +2054,19 @@ void FF2::main_loop(unsigned elapsed_milliseconds)
 {
   if (this->game_state_ == FF2_STATE_LOADING_SCREEN)
   {
-    logo_state_loop(graphics_, logic_, elapsed_milliseconds);
+    FF2State new_state = logo_state_loop(graphics_, logic_, elapsed_milliseconds);
+    if (new_state != this->game_state_)
+    {
+      switch_to_state(new_state);
+    }
   }
   else if (this->game_state_ == FF2_STATE_MAIN_MENU)
   {
-    meniu_principal(graphics_, logic_);
+    FF2State new_state = main_menu_loop(graphics_, logic_, elapsed_milliseconds);
+    if (new_state != this->game_state_)
+    {
+      switch_to_state(new_state);
+    }
   }
   else if (this->game_state_ == FF2_STATE_GAME)
   {
@@ -2066,6 +2080,10 @@ void FF2::switch_to_state(FF2State state)
   {
   case FF2_STATE_LOADING_SCREEN:
     init_logo_state(graphics_, logic_);
+    break;
+
+  case FF2_STATE_MAIN_MENU:
+    init_main_menu_state(graphics_, logic_);
     break;
 
   default:
